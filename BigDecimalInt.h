@@ -1,11 +1,16 @@
-#include <bits/stdc++.h>
+//#include <bits/stdc++.h>
+#include <iostream>
+#include <deque>
 using namespace std;
 
 
 class BigDecimalInt {
+
     // cout operator overloading function
     friend ostream& operator<<(ostream& out,const BigDecimalInt& bigint);
+
 public:
+
     // constructors
     BigDecimalInt(const string& num);
     BigDecimalInt(const int& num=0);
@@ -27,7 +32,7 @@ private:
     deque<char> digits; // for storing digits from the string
     char sign;  // to store the sign
 
-    // private functions
     void setSign(const char &sign);
     void validate(const string &num); // helper /utility function
+    void matchSize(BigDecimalInt& LHS,BigDecimalInt& RHS)const;// helper /utility function
 };
