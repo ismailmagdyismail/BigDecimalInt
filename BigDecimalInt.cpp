@@ -330,16 +330,14 @@ void BigDecimalInt::validate(const string &num){
 
 // ****************************** Add leading zeros to facilitate Operations *******************************
 void BigDecimalInt::matchSize(BigDecimalInt& LHS,BigDecimalInt& RHS)const{
-    if(RHS.getSize() != LHS.getSize()){
-        int diff = abs( RHS.getSize() - LHS.getSize() );
-        for(long long i = 0; i < diff; i++){
-            // add leading zeros to the shorter number to facilitate operations
-            if(RHS.getSize() > LHS.getSize()){
-                LHS.digits.push_front('0');
-            }
-            else{
-                RHS.digits.push_front('0');
-            }
+    long long diff = abs( RHS.getSize() - LHS.getSize() );
+    for(long long i = 0; i < diff; i++){
+        // add leading zeros to the shorter number to facilitate operations
+        if(RHS.getSize() > LHS.getSize()){
+            LHS.digits.push_front('0');
+        }
+        else{
+            RHS.digits.push_front('0');
         }
     }
 }
