@@ -1,344 +1,241 @@
+#include "BigReal.h"
 //#include <bits/stdc++.h>
-#include "BigDecimalInt.h"
+#include <iostream>
 #include <regex>
 using namespace std;
 
 
-// ******************************** String Constructor ****************************
-BigDecimalInt::BigDecimalInt(const string& num) {
-    // validating (sign,digits ,etc....)
-    validate(num);
+
+//***********************************************************************************************************
+BigReal::BigReal (const string &realNumber){
+    setWhole(realNumber);
+    setFraction(realNumber);
+}
+
+//***********************************************************************************************************
+BigReal::BigReal(const double& realNumber){
+    string number = to_string(realNumber);
+    *this = BigReal(number);       //////////////////////////////// KOSMEK
+}
+
+//***********************************************************************************************************
+BigReal::BigReal (const BigDecimalInt& bigInteger){
+    this->whole = bigInteger;
+    this->fraction = "0";
 }
 
 
-// ***************************** Copy Constructor ***************************************
-BigDecimalInt::BigDecimalInt(const BigDecimalInt &other) {
-
-    // extracting  digits
-    for (int i = 0; i <other.getSize(); ++i) {
-        this->digits.push_back(other.digits[i]);
-    }
-    //setting sign
-    setSign(other.getSign());
-}
-
-// ******************************** Int Constructor ****************************
-BigDecimalInt::BigDecimalInt(const int & num) {
-    int temp=num;
-    if(num==0) {
-        digits.push_back('0');
-        setSign('+');
-    }
-    else if(num<0) {
-        setSign('-');
-        temp*=-1;
-    }
-    else
-        setSign('+');
-    while(temp) {
-        int digit=temp%10;
-        temp/=10;
-        digits.push_front(digit + '0');
-    }
+//***********************************************************************************************************
+BigReal::BigReal (const BigReal& other){
+    this->whole = other.whole;
+    this->fraction = other.fraction;
 }
 
 
-// ******************************* Assignment "=" Operator  *****************************
-BigDecimalInt& BigDecimalInt::operator=(const BigDecimalInt &num) {
-    this->digits.clear(); // clear the object
-    this->setSign(num.getSign()); // copy the sign
-
-    // copy the digits
-    for (const char& i : num.digits) {
-        digits.push_back(i);
-    }
+//***********************************************************************************************************
+BigReal& BigReal::operator = (const BigReal& other){
+    this->whole = other.whole;
+    this->fraction = other.fraction;
     return *this;
 }
 
 
-// ******************************* Size Getter Function *****************************
-int BigDecimalInt::getSize() const {
-    // return deque's size
-    return  digits.size();
+//***********************************************************************************************************
+int BigReal::size()const{
+    return fraction.size() + whole.size();  /////// KOSMEK anty kaman
+}
+
+//***********************************************************************************************************
+char BigReal::sign()const{
+    return whole.getSign();
+}
+
+//***********************************************************************************************************
+bool BigReal::operator==(const BigReal& anotherReal)const {
+    string leftFraction = this->fraction;
+    string rightFraction= anotherReal.fraction;
+    matchFractionSize(leftFraction, rightFraction); // 13.3500
+    return ((this->whole==anotherReal.whole)&&(leftFraction==rightFraction));
 }
 
 
-// ******************************* Sign Getter Function *****************************
-char BigDecimalInt::getSign() const {
-    return  sign;
-}
+//***********************************************************************************************************
+BigReal BigReal::operator+(const BigReal& other)const{
 
-
-// ******************************** Sign Setter Function ****************************
-void BigDecimalInt::setSign(const char& sign) {
-    if(!isdigit(sign)) {
-        this->sign = sign;
-    }
-    else
-        this->sign = '+';
-}
-
-
-
-// ******************************** Addition "+" Operator ****************************
-BigDecimalInt BigDecimalInt::operator+(const BigDecimalInt &num)const {
-
-    // if they not have the same signs change the operate to subtract
-    // (1 + -2) == (1 - 2)
-    if(this->getSign() != num.getSign()){
-        BigDecimalInt temp(num);
-        temp.setSign(this-> getSign());
+    if(this->sign() != other.sign()){
+        BigReal temp(other);
+        temp.whole.setSign(this->sign());
         return *this-temp;
     }
 
+    // fraction part addition
+    string LHS = this->fraction;
+    string RHS = other.fraction;
 
-    BigDecimalInt result;
-    result.digits.clear();
-    result.setSign(this->getSign());
+    matchFractionSize(LHS,RHS);
 
-    BigDecimalInt LHS = *this;
-    BigDecimalInt RHS = num;
+    string fractionResult;
+    fractionResult.resize(LHS.size());
+    int fractionCarry = 0 ;
 
-    // add leading zeros to facilitate Addition
-    matchSize(LHS,RHS);
+    for (int i = LHS.size() - 1; i >= 0 ; --i) {
+        int lhsDigit = LHS[i] - '0';
+        int rhsDigit = RHS[i] - '0';
+        int sum = lhsDigit + rhsDigit + fractionCarry;
 
-    int carry = 0 ;
-    for (int i = LHS.getSize()-1; i>=0 ; --i) {
-        int lhsDigit = LHS.digits[i] - '0';
-        int rhsDigit = RHS.digits[i] - '0';
-        int sum = lhsDigit + rhsDigit + carry;
-
-        // if the sum of two digits will make overflow("greater than 9") we add carry to the next digit's sum
+        // if the sum of two digits will make overflow("greater than 9") we add fractionCarry to the next digit's sum
         if(sum>9) {
-            carry = 1;
-            // take the last digit to add it to the object
+            fractionCarry = 1;
             sum%=10;
         }
-        else
-            carry = 0;
-        result.digits.push_front(sum + '0');
-    }
-    if(carry)
-        result.digits.push_front(carry + '0');
-
-    return  result;
-}
-
-
-
-// ***************************** Subtraction "-" Operator *******************************
-BigDecimalInt BigDecimalInt::operator-(const BigDecimalInt &num)const{
-    /* call add operator if they have non equal signs and set their add sign to the first number
-       (-3 - 2) = -(3 + 2) || (3 - -6) = (3 + 6)
-    */
-    if(this->getSign() != num.getSign()) {
-        BigDecimalInt temp(num);
-        temp.setSign(this-> getSign());
-        return *this+temp;
-    }
-
-    BigDecimalInt result,bigger,smaller;
-
-    bigger.setSign('+');
-    result.digits.clear();
-
-
-    smaller= *this;
-    char smallerSign = this->getSign(); // save old sign
-    smaller.setSign('+');
-
-    bigger = num;
-    if(bigger.getSign()=='+') // flip sign (1 - +6) == (1 - 6)
-        bigger.setSign('-');
-    else
-        bigger.setSign('+'); // (1 - -6) == (1 + 6)
-
-    char biggerSign = bigger.getSign(); // save old sign
-    bigger.setSign('+'); // get abs value
-
-
-    if(smaller > bigger) { // assign the bigger and the smaller value and the result's sign
-        result.setSign(smallerSign);
-        swap(bigger,smaller);
-    }
-    else if(bigger > smaller) { // assign the bigger and the smaller value and the result's sign
-        result.setSign(biggerSign);
-    }
-    else { // if they are equal return 0 (50 - 50) = 0
-        result.setSign('+');
-        return BigDecimalInt("0");
-    }
-
-
-    //add leading zeros to facilitate subtraction
-    matchSize(smaller,bigger);
-
-
-    // subtraction
-    for (int i =  bigger.getSize()-1 ; i >= 0; i--) {
-        // if the bigger's number digit less than the smaller's number digit borrow from it's left neighbor one
-        if(bigger.digits[i] < smaller.digits[i]) {
-            bigger.digits[i-1]--;
-            bigger.digits[i] += 10;
+        else{
+            fractionCarry = 0;
         }
-        // subtract them and store the result in the object
-        result.digits.push_front('0' + bigger.digits[i] - smaller.digits[i]);
+        fractionResult[i] = sum+'0';
     }
+    // whole part addition
+    BigDecimalInt wholeResult  = this->whole + other.whole;
+
+    wholeResult = wholeResult+fractionCarry;
+
+    BigReal result;
+    result.whole = wholeResult;
+    result.fraction = fractionResult;
     return result;
 }
 
 
-
-// ******************************* Less Than "<" Operator *****************************
-bool BigDecimalInt::operator< (const BigDecimalInt& anotherDec)const{
-    // if the first number have a negative sign and the second number have positive sign function will return true
-    if(this->getSign()=='-'&&anotherDec.getSign()=='+')
-        return true;
-    // if the first number have a positive sign and the second number have negative sign function will return false
-    if(this->getSign()=='+'&&anotherDec.getSign()=='-')
-        return false;
-
-
-
-    BigDecimalInt LHS = *this;
-    BigDecimalInt RHS = anotherDec;
-
-    /* if they both have negative signs we will take their abs and compare them with less than operate
-       (-2 < -3) ? --> (2 > 3) ? "no" // (-5 < -3) ? --> (5 > 3) ? "yes"
-    */
-    if(this->getSign()=='-' && anotherDec.getSign()=='-') {
-        LHS.setSign('+');
-        RHS.setSign('+');
-        return (LHS>RHS);
+//***********************************************************************************************************
+BigReal BigReal::operator-(const BigReal& other) const {
+    if(this->sign() != other.sign()) {
+        BigReal temp(other);
+        temp.whole.setSign(this->sign());
+        return *this+temp;
     }
 
-    // add leading zeros to facilitate comparison
-    matchSize(LHS,RHS);
+    BigReal result ;
 
-    // if they are equal in digits number we will compare each digit from the left to the right
-    for(long long i = 0; i < RHS.getSize(); i++){
-        if(RHS.digits[i] > LHS.digits[i])
-            return true;
-        else if(RHS.digits[i] < LHS.digits[i])
-            return false;
+    BigReal bigger =  max(*this,other);
+    BigReal smaller = min(*this,other);
+
+    string biggerFraction = bigger.fraction;
+    string smallerFraction = smaller.fraction;
+
+    if(smallerFraction>biggerFraction){
+        bigger = bigger - 1;
+        biggerFraction[0]+=10;
     }
-    return false;
+    matchFractionSize(biggerFraction,smallerFraction);
+
+    result.fraction.resize(biggerFraction.size());
+
+    for (int i = biggerFraction.size() - 1 ; i >= 0; i--) {
+        if(biggerFraction[i] < smallerFraction[i]) {
+            biggerFraction[i-1]--;
+            biggerFraction[i] += 10;
+        }
+        result.fraction[i] = biggerFraction[i]-smallerFraction[i];
+    }
+    result.whole = bigger.whole-smaller.whole;
+
+    return result;
+}
+
+//***********************************************************************************************************
+bool BigReal::operator<(const BigReal& anotherReal)const{
+    if(this->whole==anotherReal.whole){
+        return (this->fraction<anotherReal.fraction);
+    }
+    else
+        return (this->whole<anotherReal.whole);
 }
 
 
-// ****************************** Greater Than ">" Operator ******************************
-bool BigDecimalInt::operator> (const BigDecimalInt& anotherDec)const{
-
-    // if the first number have a negative sign and the second number have positive sign function will return false
-    if(this->getSign()=='-' && anotherDec.getSign()=='+')
-        return false;
-    // if the first number have a positive sign and the second number have negative sign function will return true
-    if(this->getSign()=='+' && anotherDec.getSign()=='-')
-        return true;
-
-
-
-    BigDecimalInt LHS = *this;
-    BigDecimalInt RHS = anotherDec;
-
-    /* if they both have negative signs we will take their abs and compare them with less than operate
-       (-2 > -3) ? --> (2 < 3) ? "yes" // (-5 > -3) ? --> (5 < 3) ? "no"
-    */
-    if(this->getSign()=='-' && anotherDec.getSign()=='-') {
-        LHS.setSign('+');
-        RHS.setSign('+');
-        return (LHS<RHS);
+//***********************************************************************************************************
+bool BigReal::operator>(const BigReal &anotherReal) const {
+    if(this->whole==anotherReal.whole){
+        return (this->fraction>anotherReal.fraction);
     }
-
-
-    // add leading zeros to facilitate comparison
-    matchSize(LHS,RHS);
-
-
-    // if they are equal in digits number we will compare each digit from the left to the right
-    for(long long i = 0; i < anotherDec.getSize(); i++){
-        if(LHS.digits[i] > RHS.digits[i])
-            return true;
-        else if(LHS.digits[i] < RHS.digits[i])
-            return false;
-    }
-
-    // if they are equal
-    return false;
+    else
+        return (this->whole>anotherReal.whole);
 }
 
 
-// ****************************** Equality "==" Operator******************************
-bool BigDecimalInt::operator==(const BigDecimalInt& anotherDec) const {
-    // if the first not greater than the second and not less than the second that means that the two numbers are equal
-    return (!(*this < anotherDec) && !(*this > anotherDec));
+//***********************************************************************************************************
+ostream& operator << ( ostream& out,const BigReal& num){
+    out<<num.whole<<"." << num.fraction;
+    return  out;
 }
 
 
-// ****************************** Output Operator "<<" Overloading  ******************************
-ostream& operator<<(ostream& out,const BigDecimalInt& bigint) {
+//***********************************************************************************************************
+istream& operator >> (istream& in,BigReal& num){
+    string str;
+    in >> str;
+    num = BigReal(str);
+    return in;
+}
 
-    // if the object negative from check it's sign output the sign first
-    if(bigint.getSign()=='-')
-        out << '-';
 
-    bool leadingZero = true;
-    // output the digits without leadingZeros
-    for (const char& i : bigint.digits) {
-        if(i!='0'||!leadingZero){
-            leadingZero = false;
-            out<<i;
+//***********************************************************************************************************
+void BigReal::setFraction(const string &number){
+    int pointIdx = -1;
+    string fractionPart;
+    for (int i = 0; i <number.size(); ++i) {
+        if (number[i] == '.' && pointIdx == -1){
+            pointIdx = i;
+        }
+        else if (pointIdx != -1){  // found the decimal point
+            fractionPart+=number[i];
         }
     }
-    if(leadingZero) // check if the number is just zero
-        out<<'0';
-    return out;
+
+    if(pointIdx==-1 || fractionPart.empty() || !regex_match(fractionPart, regex("\\d+") ) ){
+        this->fraction ="0";
+        return;
+    }
+
+    // remove trailing zeros
+    for (int i = fractionPart.size()-1; i>=0 ; --i){
+        if(fractionPart[i]!='0'){
+            break;
+        }
+        fractionPart.erase(i,1);
+    }
+
+    if(fractionPart.empty())
+        this->fraction = "0";
+    else
+        this->fraction = fractionPart;
+}
+
+//***********************************************************************************************************
+void BigReal::setWhole(const string &number) {
+    string wholePart ;
+    for (const char& i : number) {
+        if(i=='.')
+            break;
+        wholePart+=i;
+    }
+    this->whole = BigDecimalInt(wholePart);
 }
 
 
-// ****************************** Validating number **************************************************
-void BigDecimalInt::validate(const string &num){
-    bool valid = true;
-    bool zero = true;
 
-    // check if sign exist only once or not and check if the string contain numbers only using regex
-    if (! regex_match(num, regex("(\\+|-)?\\d+") ) ){
-        valid = false;
-    }
-    else {
-        if(isdigit(num[0])) {
-            digits.push_back(num[0]);
-            if(digits[0]!='0')
-                zero = false;
-        }
-        for (int i = 1; i <num.size() ; ++i) {
-            digits.push_back(num[i]);
-            if(digits[i]!='0')
-                zero = false;
-        }
-    }
-    // if the string not valid set the object with default value zero || it is already a 0
-    if(!valid || zero) {
-        digits.push_back('0');
-        setSign('+');
-    }
-    else{
-        setSign(num[0]);
-    }
-}
-
-
-// ****************************** Add leading zeros to facilitate Operations *******************************
-void BigDecimalInt::matchSize(BigDecimalInt& LHS,BigDecimalInt& RHS)const{
-    long long diff = abs( RHS.getSize() - LHS.getSize() );
+//***********************************************************************************************************
+void BigReal::matchFractionSize(string &LHS, string &RHS){
+    long long diff = abs((long long)LHS.size()-(long long)RHS.size());
     for(long long i = 0; i < diff; i++){
-        // add leading zeros to the shorter number to facilitate operations
-        if(RHS.getSize() > LHS.getSize()){
-            LHS.digits.push_front('0');
+        // add trailing zeros to the shorter number to facilitate operations
+        if(RHS.size() > LHS.size()){
+            LHS.push_back('0');
         }
         else{
-            RHS.digits.push_front('0');
+            RHS.push_back('0');
         }
     }
 }
-// ********************************************************************************************************
+
+
+
+//***********************************************************************************************************
